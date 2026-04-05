@@ -30,7 +30,7 @@ with tab1:
         with st.spinner("Downloading YouTube video..."):
             try:
                 yt = YouTube(youtube_url)
-                stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
+                stream = yt.streams.filter(progressive=True, file_extension=\'mp4\').first()
                 video_path = stream.download(output_path=tempfile.gettempdir())
                 st.video(video_path)
             except Exception as e:
@@ -57,8 +57,8 @@ if video_path and api_key:
                     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
                 ]
                 
-                # Fixed model name: gemini-1.5-flash-latest
-                model = genai.GenerativeModel('gemini-1.5-flash-latest', safety_settings=safety_settings)
+                # Fixed model name here
+                model = genai.GenerativeModel(\'gemini-2.5-flash\', safety_settings=safety_settings)
                 
                 video_file_ai = genai.upload_file(path=video_path)
                 while video_file_ai.state.name == "PROCESSING":
@@ -87,15 +87,15 @@ if video_path and api_key:
                     video_clip = VideoFileClip(video_path)
                     video_duration = video_clip.duration
                     
-                    lines = subtitle_script.strip().split('\n')
+                    lines = subtitle_script.strip().split(\'\\n\')
                     subtitle_clips = []
                     
                     for line in lines:
-                        match = re.search(r'\[(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\]\s*(.*)', line)
+                        match = re.search(r\'\\[(\\d{1,2}:\\d{2})\\s*-\\s*(\\d{1,2}:\\d{2})\\]\\s*(.*)\\' , line)
                         if match:
                             start_str, end_str, text = match.groups()
-                            start_sec = int(start_str.split(':')[0]) * 60 + int(start_str.split(':')[1])
-                            end_sec = int(end_str.split(':')[0]) * 60 + int(end_str.split(':')[1])
+                            start_sec = int(start_str.split(\':\')[0]) * 60 + int(start_str.split(\':\')[1])
+                            end_sec = int(end_str.split(\':\')[0]) * 60 + int(end_str.split(\':\')[1])
                             
                             # Cap timing to video duration
                             start_sec = min(start_sec, video_duration)
@@ -108,14 +108,14 @@ if video_path and api_key:
                                 bar_height = int(video_clip.h * 0.12)
                                 black_bar = (ColorClip(size=(video_clip.w, bar_height), color=(0, 0, 0))
                                             .with_duration(duration)
-                                            .with_position(('center', video_clip.h - bar_height - 10))
+                                            .with_position((\'center\', video_clip.h - bar_height - 10))
                                             .with_start(start_sec)
                                             .with_opacity(0.8))
                                 
                                 # Create Burmese Subtitle Text
-                                txt_clip = (TextClip(text=text, font="Arial", font_size=24, color='white', method='caption', size=(video_clip.w * 0.8, None))
+                                txt_clip = (TextClip(text=text, font="Arial", font_size=24, color=\'white\', method=\'caption\', size=(video_clip.w * 0.8, None))
                                            .with_duration(duration)
-                                           .with_position(('center', video_clip.h - bar_height - 5))
+                                           .with_position((\'center\', video_clip.h - bar_height - 5))
                                            .with_start(start_sec))
                                 
                                 subtitle_clips.extend([black_bar, txt_clip])
