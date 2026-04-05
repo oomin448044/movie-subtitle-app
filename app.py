@@ -72,13 +72,21 @@ if video_path and api_key:
                 st.success("Video uploaded successfully!")
                 
                 prompt = """
-                Analyze this video carefully. Act as a professional Movie Translator.
+                Please analyze this video very carefully and extract ALL dialogue and narration.
                 
-                Translate the original dialogue and narration into BURMESE language.
-                - Use natural, spoken Burmese.
-                - Format: [MM:SS - MM:SS] Burmese Translation
-                - Ensure the timing is precise with the speech in the video.
-                - Return only the subtitles in the specified format.
+                IMPORTANT: You MUST translate EVERYTHING into BURMESE language.
+                
+                Format your response EXACTLY like this:
+                [MM:SS - MM:SS] မြန်မာစာ အဘိဓာန်
+                [MM:SS - MM:SS] မြန်မာစာ အဘိဓာန်
+                
+                Rules:
+                - MUST use Burmese script (Myanmar Unicode)
+                - MUST include timing in [MM:SS - MM:SS] format
+                - MUST translate every single line of dialogue
+                - Use natural, conversational Burmese
+                - Do NOT skip any dialogue
+                - Return ONLY the subtitles, nothing else
                 """
                 
                 st.info("Generating Burmese subtitles...")
@@ -119,17 +127,19 @@ if video_path and api_key:
                                 if text.strip() and start_sec < end_sec:
                                     duration = end_sec - start_sec
                                     
-                                    bar_height = max(1, int(video_clip.h * 0.12))
+                                    # Create Black Bar at the BOTTOM of video
+                                    bar_height = max(1, int(video_clip.h * 0.15))
                                     black_bar = (ColorClip(size=(int(video_clip.w), bar_height), color=(0, 0, 0))
                                                 .with_duration(duration)
-                                                .with_position(('center', int(video_clip.h - bar_height - 10)))
+                                                .with_position(('center', int(video_clip.h - bar_height)))
                                                 .with_start(start_sec)
-                                                .with_opacity(0.8))
+                                                .with_opacity(0.9))
                                     
-                                    subtitle_width = max(1, int(video_clip.w * 0.8))
-                                    txt_clip = (TextClip(text=text, font_size=24, color='white', method='caption', size=(subtitle_width, None))
+                                    # Create Burmese Subtitle Text at BOTTOM
+                                    subtitle_width = max(1, int(video_clip.w * 0.9))
+                                    txt_clip = (TextClip(text=text, font_size=28, color='white', method='caption', size=(subtitle_width, None))
                                                .with_duration(duration)
-                                               .with_position(('center', int(video_clip.h - bar_height - 5)))
+                                               .with_position(('center', int(video_clip.h - bar_height + 10)))
                                                .with_start(start_sec))
                                     
                                     subtitle_clips.extend([black_bar, txt_clip])
