@@ -149,11 +149,7 @@ if video_path and api_key:
                     final_video.write_videofile(
                         output_video_path, 
                         codec="libx264", 
-                        audio_codec="aac", 
-                        temp_audiofile="temp-audio.m4a", 
-                        remove_temp=True,
-                        verbose=False,
-                        logger=None
+                        audio_codec="aac"
                     )
                     
                     st.success("Video processing complete!")
