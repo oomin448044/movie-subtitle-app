@@ -57,7 +57,8 @@ if video_path and api_key:
                     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
                 ]
                 
-                model = genai.GenerativeModel('models/gemini-1.5-flash', safety_settings=safety_settings)
+                # Fixed model name here
+                model = genai.GenerativeModel('gemini-1.5-flash', safety_settings=safety_settings)
                 
                 video_file_ai = genai.upload_file(path=video_path)
                 while video_file_ai.state.name == "PROCESSING":
