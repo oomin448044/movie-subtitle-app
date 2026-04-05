@@ -57,7 +57,7 @@ if video_path and api_key:
                     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
                 ]
                 
-                # Fixed model name here
+                # Updated model name to gemini-2.5-flash
                 model = genai.GenerativeModel(\'gemini-2.5-flash\', safety_settings=safety_settings)
                 
                 video_file_ai = genai.upload_file(path=video_path)
@@ -91,7 +91,8 @@ if video_path and api_key:
                     subtitle_clips = []
                     
                     for line in lines:
-                        match = re.search(r\'\\[(\\d{1,2}:\\d{2})\\s*-\\s*(\\d{1,2}:\\d{2})\\]\\s*(.*)\\' , line)
+                        # Improved regex to match timing format [MM:SS - MM:SS]
+                        match = re.search(r\'\\[(\\d{1,2}:\\d{2})\\s*-\\s*(\\d{1,2}:\\d{2})\\]\\s*(.*)\' , line)
                         if match:
                             start_str, end_str, text = match.groups()
                             start_sec = int(start_str.split(\':\')[0]) * 60 + int(start_str.split(\':\')[1])
