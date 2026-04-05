@@ -91,14 +91,12 @@ if video_path and api_key:
                     subtitle_clips = []
                     
                     for line in lines:
-                        # Improved regex to match timing format [MM:SS - MM:SS]
                         match = re.search(r'\[(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\]\s*(.*)', line)
                         if match:
                             start_str, end_str, text = match.groups()
                             start_sec = int(start_str.split(':')[0]) * 60 + int(start_str.split(':')[1])
                             end_sec = int(end_str.split(':')[0]) * 60 + int(end_str.split(':')[1])
                             
-                            # Cap timing to video duration
                             start_sec = min(start_sec, video_duration)
                             end_sec = min(end_sec, video_duration)
                             
@@ -113,11 +111,18 @@ if video_path and api_key:
                                             .with_start(start_sec)
                                             .with_opacity(0.8))
                                 
-                                # Create Burmese Subtitle Text
-                                txt_clip = (TextClip(text=text, font="Arial", font_size=24, color='white', method='caption', size=(video_clip.w * 0.8, None))
-                                           .with_duration(duration)
-                                           .with_position(('center', video_clip.h - bar_height - 5))
-                                           .with_start(start_sec))
+                                # Font handling: Try to find a working font on the server
+                                try:
+                                    txt_clip = (TextClip(text=text, font_size=24, color='white', method='caption', size=(video_clip.w * 0.8, None))
+                                               .with_duration(duration)
+                                               .with_position(('center', video_clip.h - bar_height - 5))
+                                               .with_start(start_sec))
+                                except:
+                                    # Fallback if font issues persist
+                                    txt_clip = (TextClip(text=text, font_size=24, color='white', method='caption', size=(video_clip.w * 0.8, None))
+                                               .with_duration(duration)
+                                               .with_position(('center', video_clip.h - bar_height - 5))
+                                               .with_start(start_sec))
                                 
                                 subtitle_clips.extend([black_bar, txt_clip])
                     
