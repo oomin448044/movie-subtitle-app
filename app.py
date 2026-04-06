@@ -1,55 +1,49 @@
+import sys
+import types
+# Fix for pydub error in Streamlit Cloud
+sys.modules["pyaudioop"] = types.ModuleType("pyaudioop")
+
 import streamlit as st
 import google.generativeai as genai
 import os
+import asyncio
+import edge_tts
 import tempfile
 import time
 import re
-from moviepy import VideoFileClip, TextClip, ColorClip, CompositeVideoClip
-from pytubefix import YouTube
+from moviepy import VideoFileClip, AudioFileClip, ImageClip, CompositeVideoClip, CompositeAudioClip, concatenate_videoclips
 
 # Page configuration
-st.set_page_config(page_title="Movie Subtitle App - Burmese", layout="wide")
+st.set_page_config(page_title="Web (1): AI Burmese Movie Narrator Pro", layout="wide")
 
-st.title("🎬 Movie Subtitle App")
-st.markdown("Generate **Burmese subtitles** for your videos using AI. Upload a video or paste a YouTube link.")
+st.title("🎬 Web (1): AI Burmese Movie Narrator Pro")
+st.markdown("Video ကိုကြည့်ပြီး လူတစ်ယောက်က ဇာတ်ကြောင်းပြောပြနေသလို မြန်မာလို ရှင်းပြပေးသော AI စနစ်")
 
 # Sidebar for Settings
 with st.sidebar:
     st.header("Settings")
     api_key = st.text_input("Enter Gemini API Key:", type="password")
-    st.info("Get your API key from Google AI Studio")
+    st.info("API Key မရှိသေးရင် VPN ဖွင့်ပြီး [Google AI Studio](https://aistudio.google.com/app/apikey) မှာ ယူပါ။")
 
-# Input Section
-tab1, tab2 = st.tabs(["YouTube Link", "Video Upload"])
+# Input Section - Video Upload Only
+st.subheader("📁 Upload Video")
+video_file = st.file_uploader("Upload Video (Max 500MB):", type=["mp4", "mov", "avi"])
 
 video_path = None
+if video_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_video:
+        tmp_video.write(video_file.read())
+        video_path = tmp_video.name
+    st.video(video_path)
 
-with tab1:
-    youtube_url = st.text_input("Paste YouTube Link here:")
-    if youtube_url:
-        with st.spinner("Downloading YouTube video..."):
-            try:
-                yt = YouTube(youtube_url)
-                stream = yt.streams.filter(progressive=True, file_extension='mp4').first()
-                if stream:
-                    video_path = stream.download(output_path=tempfile.gettempdir())
-                    st.video(video_path)
-                else:
-                    st.error("Could not find a suitable video stream.")
-            except Exception as e:
-                st.error(f"YouTube Download Error: {str(e)}")
-
-with tab2:
-    video_file = st.file_uploader("Upload Video (MP4, MOV, AVI):", type=["mp4", "mov", "avi"])
-    if video_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_video:
-            tmp_video.write(video_file.read())
-            video_path = tmp_video.name
-        st.video(video_path)
+async def generate_speech(text, output_path):
+    # Using ThihaNeural with natural rate and pitch for better human-like narration
+    communicate = edge_tts.Communicate(text, "my-MM-ThihaNeural", rate="+0%", pitch="+0Hz")
+    await communicate.save(output_path)
 
 if video_path and api_key:
-    if st.button("Generate Subtitled Video"):
-        with st.spinner("Processing video with AI..."):
+    if st.button("Generate Movie Recap"):
+        with st.spinner("AI က Video ကိုကြည့်ပြီး ဇာတ်ကြောင်းပြောရန် ပြင်ဆင်နေပါတယ်..."):
             try:
                 genai.configure(api_key=api_key)
                 
@@ -60,133 +54,98 @@ if video_path and api_key:
                     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
                 ]
                 
-                model = genai.GenerativeModel('gemini-2.5-flash', safety_settings=safety_settings)
+                model = genai.GenerativeModel('gemini-1.5-flash', safety_settings=safety_settings)
                 
-                st.info("Uploading video to Gemini AI...")
                 video_file_ai = genai.upload_file(path=video_path)
-                
                 while video_file_ai.state.name == "PROCESSING":
                     time.sleep(2)
                     video_file_ai = genai.get_file(video_file_ai.name)
                 
-                st.success("Video uploaded successfully!")
-                
+                # Enhanced prompt for more human-like storytelling
                 prompt = """
-                Please analyze this video very carefully and extract ALL dialogue and narration.
+                Analyze this video and provide a detailed movie recap in BURMESE language.
                 
-                IMPORTANT: You MUST translate EVERYTHING into BURMESE language.
+                STORYTELLING STYLE:
+                - Act as a professional human movie narrator.
+                - Use natural, engaging, and emotional Burmese storytelling style.
+                - Avoid robotic or formal language. Use words that a real person would use to explain a movie to a friend.
+                - Ensure the narration is clear and well-paced.
                 
-                Format your response EXACTLY like this:
-                [MM:SS - MM:SS] မြန်မာစာ အဘိဓာန်
-                [MM:SS - MM:SS] မြန်မာစာ အဘိဓာန်
-                
-                Rules:
-                - MUST use Burmese script (Myanmar Unicode)
-                - MUST include timing in [MM:SS - MM:SS] format
-                - MUST translate every single line of dialogue
-                - Use natural, conversational Burmese
-                - Do NOT skip any dialogue
-                - Return ONLY the subtitles, nothing else
+                OUTPUT FORMAT:
+                [TITLES]
+                Title 1
+                Title 2
+                Title 3
+                [HASHTAGS]
+                #tag1 #tag2 #tag3
+                [RECAP]
+                The detailed story...
                 """
                 
-                st.info("Generating Burmese subtitles...")
                 response = model.generate_content([video_file_ai, prompt])
                 
-                if not response.candidates or not response.text:
-                    st.error("AI could not process this video.")
+                if not response.candidates:
+                    st.error("AI က ဒီ Video ကို ပိတ်ပင်ထားပါတယ် (Blocked)။")
                 else:
-                    subtitle_script = response.text
-                    st.subheader("Generated Subtitles:")
-                    st.write(subtitle_script)
+                    full_text = response.text
                     
-                    st.info("Processing video with subtitles...")
+                    # Parsing titles and hashtags
+                    titles_match = re.search(r'\[TITLES\]\n(.*?)\n(.*?)\n(.*?)\n', full_text + "\n\n\n", re.DOTALL)
+                    hashtags_match = re.search(r'\[HASHTAGS\]\n(.*?)\n', full_text)
+                    recap_text = full_text.split("[RECAP]")[-1].strip()
+                    
+                    # Display Social Media Box
+                    st.success("✨ Social Media Ready Content!")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.subheader("📌 Catchy Titles")
+                        if titles_match:
+                            for i in range(1, 4):
+                                st.code(titles_match.group(i).strip())
+                    with col2:
+                        st.subheader("🔥 Trending Hashtags")
+                        if hashtags_match: st.code(hashtags_match.group(1).strip())
+                    
+                    st.subheader("📝 Full Recap Script:")
+                    st.write(recap_text)
+                    
+                    # Generate Audio
+                    audio_path = "narration.mp3"
+                    asyncio.run(generate_speech(recap_text, audio_path))
+                    
+                    # Process Video
                     video_clip = VideoFileClip(video_path)
-                    video_duration = video_clip.duration
+                    audio_clip = AudioFileClip(audio_path)
                     
-                    lines = subtitle_script.strip().split('\n')
-                    subtitle_clips = []
+                    # Mute original audio
+                    video_muted = video_clip.without_audio()
                     
-                    for line in lines:
-                        if not line.strip():
-                            continue
-                            
-                        match = re.search(r'\[(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\]\s*(.*)', line)
-                        if match:
-                            try:
-                                start_str, end_str, text = match.groups()
-                                
-                                start_parts = start_str.split(':')
-                                end_parts = end_str.split(':')
-                                
-                                start_sec = int(start_parts[0]) * 60 + int(start_parts[1])
-                                end_sec = int(end_parts[0]) * 60 + int(end_parts[1])
-                                
-                                start_sec = max(0, min(start_sec, video_duration))
-                                end_sec = max(start_sec, min(end_sec, video_duration))
-                                
-                                if text.strip() and start_sec < end_sec:
-                                    duration = end_sec - start_sec
-                                    
-                                    # Create Black Bar at the BOTTOM of video
-                                    bar_height = max(1, int(video_clip.h * 0.15))
-                                    black_bar = (ColorClip(size=(int(video_clip.w), bar_height), color=(0, 0, 0))
-                                                .with_duration(duration)
-                                                .with_position(('center', int(video_clip.h - bar_height)))
-                                                .with_start(start_sec)
-                                                .with_opacity(0.9))
-                                    
-                                    # Create Burmese Subtitle Text at BOTTOM
-                                    subtitle_width = max(1, int(video_clip.w * 0.9))
-                                    txt_clip = (TextClip(text=text, font_size=28, color='white', method='caption', size=(subtitle_width, None))
-                                               .with_duration(duration)
-                                               .with_position(('center', int(video_clip.h - bar_height + 10)))
-                                               .with_start(start_sec))
-                                    
-                                    subtitle_clips.extend([black_bar, txt_clip])
-                            except (ValueError, IndexError) as e:
-                                st.warning(f"Skipped line: {line}")
-                                continue
-                    
-                    if subtitle_clips:
-                        final_video = CompositeVideoClip([video_clip] + subtitle_clips)
+                    # Sync video duration with audio
+                    if audio_clip.duration > video_muted.duration:
+                        last_frame = video_muted.get_frame(video_muted.duration - 0.1)
+                        freeze_frame = ImageClip(last_frame).with_duration(audio_clip.duration - video_muted.duration)
+                        video_final = concatenate_videoclips([video_muted, freeze_frame])
                     else:
-                        st.warning("No valid subtitles found. Using original video.")
-                        final_video = video_clip
+                        video_final = video_muted.with_duration(audio_clip.duration)
+                    
+                    final_video = video_final.with_audio(audio_clip)
                     
                     output_video_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
-                    st.info("Rendering final video... This may take a few minutes.")
+                    final_video.write_videofile(output_video_path, codec="libx264", audio_codec="aac", temp_audiofile="temp-audio.m4a", remove_temp=True)
                     
-                    final_video.write_videofile(
-                        output_video_path, 
-                        codec="libx264", 
-                        audio_codec="aac"
-                    )
-                    
-                    st.success("Video processing complete!")
+                    st.success("✅ Video Processing Complete!")
                     st.video(output_video_path)
-                    
                     with open(output_video_path, "rb") as f:
-                        st.download_button(
-                            label="Download Subtitled Video (MP4)",
-                            data=f,
-                            file_name="subtitled_movie.mp4",
-                            mime="video/mp4"
-                        )
+                        st.download_button("⬇️ Download Final Video (MP4)", f, "my_movie_recap.mp4", "video/mp4")
                     
                     video_clip.close()
+                    video_muted.close()
                 
-                try:
-                    genai.delete_file(video_file_ai.name)
-                except:
-                    pass
+                genai.delete_file(video_file_ai.name)
                 
             except Exception as e:
-                st.error(f"Error: {str(e)}")
-                with st.expander("Error Details"):
-                    import traceback
-                    st.code(traceback.format_exc())
-                    
+                st.error(f"❌ Error: {str(e)}")
+                import traceback
+                st.error(traceback.format_exc())
 elif not api_key and video_path:
-    st.warning("Please enter your Gemini API Key in the sidebar.")
-elif not video_path:
-    st.info("Please upload a video or paste a YouTube link to get started.")
+    st.warning("⚠️ Please enter your API Key in the sidebar.")
